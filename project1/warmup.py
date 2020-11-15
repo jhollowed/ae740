@@ -1,7 +1,8 @@
-import pdb
+tmport pdb
 import numpy as np
 import sampleSchemes as ss
 import randomVariables as rv
+import monteCarlo as mc
 import matplotlib.pyplot as plt
 
 import pathlib
@@ -14,52 +15,6 @@ cm = plt.cm.plasma
 
 
 # ===============================================================
-
-
-def monte_carlo(n, sampler, g, sampler_kwargs=None, plot=False, pdf=None):
-    '''
-    Numerically estimates the expectation value of a general proabbility 
-    distribution via the Monte Carlo method.
-
-    Parameters
-    ----------
-    sampler : function handle
-        The sampler function for the random variable X
-    gx : function handle
-        Function implementing the pdf
-    n : int
-        The number of samples to draw from uniform
-    sampler_kwargs : dict, optional
-        optional keyword arguments to pass to the sampler, as a dictionary. Defaults to None
-    plot : bool, optional
-        Whether or not to plot the new random variable Y=g(X). Defaults to False
-    pdf : function handle, optional 
-        function handle to probability_density method of a randomVariable object instance, 
-        implementing underlying limiting distribution. Only used for plotting. Defaults to None, 
-        in which case only a histogram of the samples is plotted for plot=True
-    '''
-
-    samples = np.sort(sampler(n))
-    gx = g(samples)
-    mean = np.sum(gx) / len(gx)
-    #pdb.set_trace()
-
-    if(plot):
-        std_samples = np.linspace(min(samples), max(samples), 1000)
-        f = plt.figure()
-        ax = f.add_subplot(111)
-        ax.hist(samples, bins=100, density=True, label=r'$\mathrm{sampled}\>X$', color=cm(0.75))
-        if(pdf is not None):
-            ax.plot(std_samples, pdf(std_samples), '-k', label=r'$f_X(x)$')
-        ax.legend(fontsize=12)
-        ax.set_xlabel(r'$x$', fontsize=14)
-        ax.set_ylabel(r'$g(X)$', fontsize=14)
-        plt.show()
-
-    return mean, samples
- 
-
-# ---------------------------------------------------------------
 
 
 def mc_inverse_sampling():
@@ -85,8 +40,8 @@ def mc_inverse_sampling():
     # perform MC procedure for each value of n
     for j in range(len(n)):
         if(j % 20 == 0): print('running n {}/{}'.format(j+1, len(n)))
-        [mean[j], samples] = monte_carlo(n[j], sampler, g, sampler_kwargs={'plot':True}, 
-                                         plot=False, pdf=X.probability_density) 
+        [mean[j], samples] = mc.monte_carlo_expectation(n[j], sampler, g, sampler_kwargs={'plot':True}, 
+                                                        plot=False, pdf=X.probability_density) 
     # plot
     ax.plot(n, mean, '-', color=cm(0.33)) 
     ax.plot([min(n), max(n)], [true_mean, true_mean], '--k', label=r'$\mathrm{true\>mean}$')
@@ -129,8 +84,8 @@ def mc_rejection_sampling():
         # perform MC procedure for each value of n
         for j in range(len(n)):
             if(j % 20 == 0): print('running n {}/{}'.format(j+1, len(n)))
-            [mean[j], samples] = monte_carlo(n[j], sampler, g, sampler_kwargs={'plot':True}, 
-                                             plot=False, pdf=X.probability_density)
+            [mean[j], samples] = mc.monte_carlo_expectation(n[j], sampler, g, sampler_kwargs={'plot':True}, 
+                                                            plot=False, pdf=X.probability_density)
             n[j] = len(samples)
         
         # since we used rejection sampling, and therefore don't know exactly what the sample
