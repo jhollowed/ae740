@@ -18,14 +18,13 @@ cov (M,) -- Covarance between each input at x, and the function values at x
 # --------------------------------------------------------------------------------------------
 
 
-def sqExpNd(x, xp, tau=1, l=0.5):
+def sqExpNd(x, xp, tau, l):
     '''
     Squared exponential kernel (N-dimensional)
-    '''
-    
+    ''' 
     N = len(xp)
-    kfunc = lambda x,xp: tau**2 * np.exp(-1/2 * (x-xp)**2 / l**2)
-    cov = np.prod([kfunc(x.T[i], xp[i]) for i in range(N)], axis=0)
+    kfunc = lambda x,xp,tau,l: tau**2 * np.exp(-1/2 * (x-xp)**2 / l**2)
+    cov = np.prod([kfunc(x.T[i], xp[i], tau[i], l[i]) for i in range(N)], axis=0)
     return cov
 
 
