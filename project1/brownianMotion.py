@@ -39,7 +39,7 @@ class geometric_brownian_motion:
     # ----------------------------------------------------------------------------------------
 
 
-    def walk(self, dt, seed=None):
+    def walk_old(self, dt):
         '''
         Performs a geometric Brownian motion
 
@@ -60,7 +60,7 @@ class geometric_brownian_motion:
         # define Gaussian RV and sample via inverse transform sampling
         W = rv.Gaussian(mu=0, sigma=dt)
         sampler = ss.InverseTransformSampler(W).sample
-        dW = sampler(N, seed=seed)
+        dW = sampler(N)
 
         # define drift and diffusion terms
         b = lambda t, Y: self.mu * Y
@@ -73,12 +73,51 @@ class geometric_brownian_motion:
             Y[n+1] = Y[n] + b(dt*n, Y[n])*dt + h(dt*n, Y[n])*dW[n]
         
         return Y, dW
+    
+    
+    # ----------------------------------------------------------------------------------------
+    
+    
+    def walk(self, dt, nsamples=1):
+        '''
+        Performs a geometric Brownian motion
+
+        Parameters
+        ----------
+        dt : int
+            size of the timestep
+        
+        Returns
+        -------
+        bmotion : 2 float arrays
+            the Brownian record, and assocaited Weiner process W
+        '''
+        
+        # number of samples from T, dt
+        N = int(np.ceil(self.T / dt)) + 1
+        
+        # define Gaussian RV and sample via inverse transform sampling
+        W = rv.Gaussian(mu=0, sigma=dt)
+        sampler = ss.InverseTransformSampler(W).sample
+        dW = sampler((nsamples, N))
+
+        # define drift and diffusion terms
+        b = lambda t, Y: self.mu * Y
+        h = lambda t, Y: self.sigma * Y
+
+        # build Yn
+        Y = np.zeros((nsamples, N))
+        Y[:, 0] = self.Y0
+        for n in range(N-1):
+            Y[:,n+1] = Y[:,n] + b(dt*n, Y[:,n])*dt + h(dt*n, Y[:,n])*dW[:,n]
+
+        return Y, dW
 
 
     # ----------------------------------------------------------------------------------------
 
 
-    def fine_to_coarse(self, dt_coarse, M, brownian_fine=None):
+    def fine_to_coarse(self, dt_coarse, M, brownian_fine=None, nsamples=None):
         '''
         Extract a sample of a coarse brownian motion simulation from a finer simulation
 
@@ -90,26 +129,32 @@ class geometric_brownian_motion:
             the fine-scale Brownian record
         M : float
             coarsening factor
+        nsamples : int
+            number of samples; only needs to be passed if brownian_fine is None, 
+            otherwise will match the input fine sample set
         '''
 
         if(brownian_fine is None):
             # get fine motion
-            brownian_fine, _ = self.walk(dt_coarse / M)
+            brownian_fine, _ = self.walk(dt_coarse / M, nsamples)
             return_fine = True
+        else:
+            nsamples = len(brownian_fine)
+            return_fine = False
 
         #subsample fine motion
-        nsamples = int(np.ceil(self.T/dt_coarse))+1
-        brownian_coarse = np.zeros(nsamples)
-        brownian_coarse[0] = brownian_fine[0]
-       
-        for i in range(1, nsamples):
-            delta = brownian_fine[i * M] - brownian_fine[(i-1) * M]
-            brownian_coarse[i] = brownian_coarse[i-1] + delta
+        N = int(np.ceil(self.T/dt_coarse))+1
+        brownian_coarse = np.zeros((nsamples, N))
+        brownian_coarse[:, 0] = brownian_fine[:, 0]
+      
+        for i in range(1, N):
+            delta = brownian_fine[:, int(i * M)] - brownian_fine[:, int((i-1) * M)]
+            brownian_coarse[:, int(i)] = brownian_coarse[:, int(i-1)] + delta
         
         if(return_fine):
             return [brownian_coarse, brownian_fine]
         else:
-            return brownain_coarse
+            return brownian_coarse
     
     
     # ----------------------------------------------------------------------------------------
@@ -245,7 +290,20 @@ class problem4:
     
 
     def part3(self):
-        return
+       
+        dt = np.array([4**(-2), 4**(-3), 4**(-4), 4**(-5)])
+        nsamples = int(1e3)
+        
+        gbm = geometric_brownian_motion(self.Y0, self.mu, self.sigma, self.T)
+        means, var, var_discrep = mc.multilevel_montecarlo_sde(gbm, dt, nsamples)
+        print('MLMC estimate of E[Y(1)] = {}'.format(means))
+        
+        f = plt.figure()
+        ax = f.add_subplot(111)
+        ax.plot([2, 3, 4, 5], var, '-ok')
+        ax.set_xlabel(r'$-\log_4(\Delta t)$', fontsize=14)
+        ax.set_ylabel(r'$\mathrm{Var}[Y(1)]$', fontsize=14)
+        plt.savefig('figs/mlmc_var.png', dpi=300)
 
 
     def part4(self):
@@ -257,5 +315,5 @@ class problem4:
 
 if __name__ == '__main__':
     p4 = problem4(dt = 0.001)
-    p4.part2()
+    p4.part3()
 
