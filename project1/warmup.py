@@ -84,7 +84,8 @@ def mc_rejection_sampling():
         # perform MC procedure for each value of n
         for j in range(len(n)):
             if(j % 20 == 0): print('running n {}/{}'.format(j+1, len(n)))
-            [mean[j], samples] = mc.monte_carlo_expectation(n[j], sampler, g, sampler_kwargs={'plot':True}, 
+            [mean[j], samples] = mc.monte_carlo_expectation(n[j], sampler, g, 
+                                                            sampler_kwargs={'plot':True}, 
                                                             plot=False, pdf=X.probability_density)
             n[j] = len(samples)
         

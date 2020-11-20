@@ -125,7 +125,7 @@ def plot_sampled_functions(nrows=2, nside=None, grid=None, mean_func=None, kerne
     Parameters
     ----------
     nrows : int
-        number of rows of 3 sample functions to plot (3*nrows total functions)
+        number of rows of 4 sample functions to plot (3*nrows total functions)
     nside : int
         number of sample points in x and y space per-function (nside^2 total evaluations per sampled function) 
     grid : (N,N) array
@@ -148,11 +148,11 @@ def plot_sampled_functions(nrows=2, nside=None, grid=None, mean_func=None, kerne
         raise RuntimeError('Either grid or nside must be passed, not both')
    
     print('visualizing sampled functions')
-    ss = GP.sample_functions(grid, nrows*3, mean_func, kernel)
+    ss = GP.sample_functions(grid, nrows*4, mean_func, kernel)
 
-    f = plt.figure()
-    for i in range(nrows*3):
-        ax = f.add_subplot(nrows,3,i+1, projection='3d')
+    f = plt.figure(figsize=(10, 10*nrows/4))
+    for i in range(nrows*4):
+        ax = f.add_subplot(nrows,4,i+1, projection='3d')
         ax.plot_surface(xy[0], xy[1], ss[i].reshape(nside, nside), cmap='viridis', edgecolor='none')
         ax.dist = 10.6
     plt.tight_layout()
@@ -170,11 +170,11 @@ if __name__ == '__main__':
     s = smellScape('initialReadings.csv')
     s.build_gp_grid(50)
     #s.add_data('sensor_request1.dat')
-    s.run_gp_regression(tau=[0.5, 0.8], l=[0.4, 0.4], vis_result=True, plot_sfx='initial')
+    s.run_gp_regression(tau=[0.5, 0.8], l=[0.4, 0.4], vis_result=True, plot_sfx='_initial')
     
     # inspect sample functions for flat prior and gpr posterior
-    #plot_sampled_functions(3, grid=s.prediction_grid, mean_func=s.gp_posterior, sfx='gpr')
-    #plot_sampled_functions(3, grid=s.prediction_grid, mean_func=s.flat_prior(s.prediction_grid), sfx='flatPrior')
+    plot_sampled_functions(2, grid=s.prediction_grid, mean_func=s.gp_posterior, sfx='_gpr')
+    plot_sampled_functions(2, grid=s.prediction_grid, mean_func=s.flat_prior(s.prediction_grid), sfx='_flatPrior')
     
     # evaluate MC estaimte of confidence interval
     s.mc_confidence([[-1, 1], [-1, 1]], 10000)

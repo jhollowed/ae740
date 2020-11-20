@@ -203,7 +203,6 @@ class Gaussian():
         FX = (1/2) * (1 + special.erf( (x - self.mean) / (sigma * np.sqrt(2)) ))
         return FX
     
-    
     # ---------------------------------------------------------------------
 
     def inverse_cumulative_density(self, u):

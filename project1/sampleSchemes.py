@@ -144,7 +144,7 @@ class InverseTransformSampler:
         
     # ---------------------------------------------------------------------
         
-    def sample(self, n, **kwargs):
+    def sample(self, n, seed=None):
         '''
         Samples from the pdf
 
@@ -164,7 +164,9 @@ class InverseTransformSampler:
         x : float array
             The samples x
         '''
-        u = np.random.uniform(low=0, high=1, size=n)
+        if(seed is not None): r = np.random.RandomState(seed)
+        else: r = np.random.RandomState()
+        u = r.uniform(low=0, high=1, size=n)
         x = self.icdf(u)
         return x
 
