@@ -48,7 +48,23 @@ class smellScape:
         self.gp_posterior = np.zeros(len(self.prediction_grid[0]))
         self.gp_cov = np.zeros(len(self.prediction_grid[0]))
         
-        self.flat_prior = lambda x: np.zeros((x.shape[0])) 
+        self.flat_prior = lambda x: np.zeros((x.shape[0]))
+
+    
+    def view_grid(self):
+        
+        print('visualizing grid')
+        f = plt.figure()
+        ax = f.add_subplot(111)
+        ss = ax.scatter(self.x, self.y, marker='^', s=200, c=self.sensor, cmap=plt.cm.viridis)
+        cb = plt.colorbar(ss, ax=ax)
+        cb.set_label(r'$\mathrm{sensor}$', fontsize=14)
+        ax.set_xlabel(r'$x$', fontsize=14)
+        ax.set_ylabel(r'$y$', fontsize=14)
+        ax.set_xlim([-1, 1])
+        ax.set_ylim([-1, 1])
+        plt.savefig('figs/grid.png', dpi=300)
+
        
 
     def generate_data_request(self, nx, ny, xlim, ylim, suffix=None):
@@ -169,7 +185,8 @@ if __name__ == '__main__':
     # create smellScapre object, define data and prediction grid, run gp regression
     s = smellScape('initialReadings.csv')
     s.build_gp_grid(50)
-    #s.add_data('sensor_request1.dat')
+    #s.view_grid()
+    s.add_data('sensor_request1.dat')
     s.run_gp_regression(tau=[0.5, 0.8], l=[0.4, 0.4], vis_result=True, plot_sfx='_initial')
     
     # inspect sample functions for flat prior and gpr posterior

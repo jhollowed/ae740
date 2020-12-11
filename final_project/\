@@ -1,0 +1,136 @@
+import numpy as np
+import samplers
+import matplotlib.pyplot as plt
+import pdb
+from mpl_toolkits import mplot3d
+
+
+# ============================================================================
+# ============================================================================
+
+
+
+class shelter:
+    def __init__(self, nstakes, pole_height = 0.45, symmetry='bilateral'):
+        '''
+        '''
+        self.nstakes = nstakes
+        self.pole_height = pole_height
+        self.symmetry = symmetry
+        self.footprint = None
+        self.poles = None
+
+        symidx = ['bilateral', 'biradial'].index(symmetry)
+        fsamplers = [samplers.sample_bilateral_footprint, samplers.sample_biradial_footprint]
+        psamplers = [samplers.sample_bilateral_poles, samplers.sample_biradial_poles]
+        self.footprint_sampler = fsamplers[symidx]
+        self.pole_sampler = psamplers[symidx]
+
+
+    def sample_footprint(self):
+
+        self.footprint = self.footprint_sampler(self.nstakes)
+
+
+    def place_poles(self):
+        
+        assert self.footprint is not None, 'must first call sample_footprint()'
+        self.poles = self.pole_sampler(self.footprint)
+
+
+    def pitch(self):
+
+        assert self.footprint is not None, 'must first call sample_footprint()'
+        assert self.poles is not None, 'must first call place_poles()'
+        
+        stakes = np.array(self.footprint.exterior.coords.xy).T[:-1].T
+        poles = np.vstack([np.array(p.xy).T[0] for p in self.poles]).T
+        tri_points = np.hstack([stakes, poles])
+        heights = np.hstack([np.zeros(len(stakes[0])), np.ones(2) * self.pole_height])
+       
+        f = plt.figure(figsize=(5, 8))
+        ax = f.add_subplot(211, projection='3d')
+        ax.plot_trisurf(tri_points[0], tri_points[1], heights, antialiased=True, color=np.array([184, 192, 223])/255)
+        ax.auto_scale_xyz([-0.5, 0.5], [-0.5, 0.5], [0, 1])
+        
+        ax2 = f.add_subplot(212)
+        self.vis_layout(ax2)
+        plt.show()
+    
+    
+    def vis_layout(self, ax=None):
+
+        assert self.footprint is not None, 'must first call sample_footprint()'
+        assert self.poles is not None, 'must first call place_poles()'
+       
+        stakes = np.array(self.footprint.exterior.coords.xy)
+        poles = np.vstack([np.array(p.xy).T[0] for p in self.poles])
+        
+        if(ax is None):
+            f = plt.figure()
+            ax = f.add_subplot(111)
+        ax.plot(stakes[0], stakes[1], '-xk')
+        ax.plot(poles.T[0], poles.T[1], 'ok')
+        ax.set_xlim([-0.7, 0.7])
+        ax.set_ylim([-0.7, 0.7])
+        plt.show()
+
+        
+
+        
+
+
+    def compute_volume_area_ratio():
+        '''
+        '''
+        return
+    
+
+    def compute_collpase_threshold():
+        '''
+        '''
+        return
+
+
+        
+
+# ============================================================================
+# ============================================================================
+
+# use shalpey for all this
+
+
+# could do...
+# generate random polygon
+# enforce symmetry by taking upper half-plane and reflecting...
+# if not N/2 points in half-plane, reject, sample again (shouldn't take too long)
+# likewise for 2-fold symmetry, but for N/4
+# via this method:
+# https://cglab.ca/~sander/misc/ConvexGeneration/convex.html
+
+# place poles...
+# for bilateral: place randomly in upper half-plane
+# for biradia: place randomly in 1st quadrant
+# via this method:
+# choose random unfiorm over bounding box, reject until found
+
+# or, much better:
+# inputs...
+# pole angle (0-pi/2), distance (within footprint)
+# x-symmery coeff (0-1)
+# y-symmetry coeff (0-1)
+# rectangular coeff (0-1)
+
+# should 2-d positions of _all_ stakes and poles be parameters? Or fewer global parameters?
+# kernels would be v complicated then....
+
+# params: 
+# θ, r for stakes (N/2 total params for biradial, N for bilateral)
+# then just rejection sampling for convex...?
+# θ, r for one pole (2 total params), other one follows symmetry properties (either reflects once, or twice)
+
+
+# 2 ways of sampling parameter space:
+# grid over parameter space, reject footprints that aren't convex, or that dont contain poles?
+# OR
+# generate random convex polygons; place poles randomly. Sample set will no be evenly discretized, but should still homogenously fill parameter space for large N
