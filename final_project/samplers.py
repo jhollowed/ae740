@@ -4,10 +4,16 @@ from shapely import geometry
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import util
+import shelter
+
 
 
 # =====================================================================================
 # =====================================================================================
+
+
+
+# ============================ INDIVIDUAL SAMPLERS ====================================
 
 
 def sample_bilateral_poles(footprint, sym_axis=None):
@@ -16,12 +22,12 @@ def sample_bilateral_poles(footprint, sym_axis=None):
 
     Parameters
     ----------
-    footprint : shapely Polygon object
+    footprint : Shapely Polygon object
         the input footprint
     
     Returns
     -------
-    footprint : a shapely Polygon object
+    footprint : a Shapely Polygon object
         the resulting footprint
     '''
     
@@ -53,18 +59,18 @@ def sample_biradial_poles(footprint):
 
     Parameters
     ----------
-    footprint : shapely Polygon object
+    footprint : Shapely Polygon object
         the input footprint
     
     Returns
     -------
-    footprint : a shapely Polygon object
+    footprint : a Shapely Polygon object
         the resulting footprint
     '''
 
     minx, miny, maxx, maxy = footprint.bounds
     while True:
-        pole1 = geometry.Point(np.random.uniform(minx, maxx), np.random.uniform(miny, maxy))
+        pole1 = geometry.Point(np.random.uniform(0, maxx), np.random.uniform(0, maxy))
         pole2 = geometry.Point(-pole1.x, -pole1.y)
         if footprint.contains(pole1) and footprint.contains(pole2):
             break
@@ -85,7 +91,7 @@ def sample_bilateral_footprint(nstakes):
     
     Returns
     -------
-    footprint : a shapely Polygon object
+    footprint : a Shapely Polygon object
         the resulting footprint
     '''
 
@@ -112,7 +118,7 @@ def sample_bilateral_footprint(nstakes):
         stakes_y = np.hstack([stakes_y[upper_mask], -stakes_y[upper_mask][::-1]])
         stakes = np.vstack([stakes_x, stakes_y])
         
-        footprint = normalize_footprint(geometry.Polygon(stakes.T))
+        footprint = util.normalize_footprint(geometry.Polygon(stakes.T))
         footprint_accepted = util.is_convex(footprint)
     
     return footprint
@@ -132,7 +138,7 @@ def sample_biradial_footprint(nstakes):
     
     Returns
     -------
-    footprint : a shapely Polygon object
+    footprint : a Shapely Polygon object
         the resulting footprint
     '''
 
@@ -161,7 +167,7 @@ def sample_biradial_footprint(nstakes):
                               -stakes_y[quad_mask], -stakes_y[quad_mask][::-1]])
         stakes = np.vstack([stakes_x, stakes_y])
 
-        footprint = normalize_footprint(geometry.Polygon(stakes.T))
+        footprint = util.normalize_footprint(geometry.Polygon(stakes.T))
         footprint_accepted = util.is_convex(footprint)
     
     return footprint
@@ -182,7 +188,7 @@ def sample_asymmetric_footprint(nstakes):
     
     Returns
     -------
-    footprint : a shapely Polygon object
+    footprint : a Shapely Polygon object
         the resulting footprint
     '''
     
@@ -220,53 +226,150 @@ def sample_asymmetric_footprint(nstakes):
     stakes = np.vstack([stakes_x, stakes_y])
 
     # build polygon object
-    footprint = normalize_footprint(geometry.Polygon(stakes.T))
+    footprint = util.normalize_footprint(geometry.Polygon(stakes.T))
     
     return footprint
 
 
+
+# ============================ ENSEMBLE SAMPLERS ====================================
+
+
+
+def random_sampling(nstakes, N, symmetry = 'biradial', normed = False):
+    '''
+    Randomly sample shelters in normalized parameter space
+
+    Parameters
+    ----------
+    nstakes : int
+        Sample shelters with this number of total stakes
+    N : int
+        Number of shelters to sample
+    normed : bool
+        Whether or not to normalize the free parameters with respect to the footprint size
+        of each sample
+    '''
+
+    # number of free parameters
+    if(symmetry == 'biradial'):
+        assert(nstakes % 4 == 0), 'nstakes must be divisible by 4'
+        free_stakes = int((nstakes/4))
+    if(symmetry == 'bilateral'): 
+        assert(nstakes % 2 == 0), 'nstakes must be divisible by 2'
+        free_stakes = int((nstakes/2))
+    free_poles = 1
+    
+    nparam = (free_stakes + free_poles) * 2  
+    free_params = np.zeros((N, int(nparam/2), 2))
+    
+    g = shelter.shelter(nstakes, symmetry=symmetry)
+    ve = np.zeros(N)
+    wp = np.zeros(N)
+    
+    # sample shelters, compute volumetric efficiency and weather performance
+    for i in range(N):
+        if(i%100 == 0): print(i)
+        g.sample_footprint()
+        g.sample_poles()
+        g.pitch()
+        this_params = g.get_free_params(normed = normed)
+        free_params[i] = np.vstack(this_params)
+        ve[i] = shelter.compute_volumetric_efficiency(g)
+        wp[i] = shelter.compute_weather_performance(g)
+
+    # compute quality metric
+    quality = (ve/np.max(ve)) * (wp/np.max(wp))
+    
+    # return sample inputs, outputs
+    return free_params, quality
+
 # --------------------------------------------------------------------------------------
 
+def latin_hypercube_sampling():
+    pass
 
-def normalize_footprint(footprint):
+
+
+
+
+
+
+
+
+
+
+
+'''
+def random_sampling(nstakes, N, symmetry = 'biradial'):
     
-    stakes_x, stakes_y = np.array(footprint.exterior.coords.xy).T[:-1].T
-    stakes = np.vstack([stakes_x, stakes_y])
+    Randomly sample shelters in normalized parameter space
+
+    Parameters
+    ----------
+    nstakes : int
+        Sample shelters with this number of total stakes
+    N : int
+        Number of shelters to sample
     
-    origin_offset_x = np.mean([np.max(stakes_x), np.min(stakes_x)])
-    origin_offset_y = np.mean([np.max(stakes_y), np.min(stakes_y)])
-    stakes[0] -= origin_offset_x
-    stakes[1] -= origin_offset_y
 
-    # move longest side to x dimension, if currently oriented in y
-    x_width = np.max(stakes[0]) - np.min(stakes[0]) 
-    y_width = np.max(stakes[1]) - np.min(stakes[1])
-    if(y_width >  x_width):
-        stakes = stakes[::-1]
-        stakes /= y_width
-    else:
-        stakes /= x_width
-    stakes *= 100
-
-    # order vertices by radial position
-    theta = np.arctan2(stakes[1], stakes[0])
-    theta_sorter = np.argsort(theta)
-    stakes_out = stakes.T[theta_sorter]
+    if(symmetry == 'biradial'):
+        assert(nstakes % 4 == 0), 'nstakes must be divisible by 4'
+        free_stakes = int((nstakes/4))
+    if(symmetry == 'bilateral'): 
+        assert(nstakes % 2 == 0), 'nstakes must be divisible by 2'
+        free_stakes = int((nstakes/2))
     
-    footprint_transformed = geometry.Polygon(stakes_out)
-    return footprint_transformed
+    g = shelter.shelter(nstakes, symmetry=symmetry)
+    sx = np.zeros((N, free_stakes))
+    sy = np.zeros((N, free_stakes))
+    px = np.zeros(N)
+    py = np.zeros(N)
+    ve = np.zeros(N)
+    wp = np.zeros(N)
+    pp = np.zeros(N)
 
+    for i in range(N):
+        if(i%100 == 0): print(i)
+        g.sample_footprint()
+        g.sample_poles()
+        g.pitch()
+        fp = g.get_free_params()
+        sx[i] = fp[0][:,0]
+        sy[i]= fp[0][:,1] / sx[i]
+        px[i]= fp[1][0] / sx[i]
+        py[i]= fp[1][1] / (sy[i] * sx[i])
+        ve[i] = shelter.compute_volumetric_efficiency(g)
+        wp[i] = shelter.compute_weather_performance(g)
+    pp = (ve/np.max(ve)) * (wp/np.max(wp))
+    
+    f = plt.figure(figsize=(10,8))
+    ax4 = f.add_subplot(221, projection='3d')
+    ax5 = f.add_subplot(222, projection='3d')
+    ax6 = f.add_subplot(223, projection='3d')
+    
+    sctr4 = ax4.scatter(px, py, sy[:,0], c=ve, marker='o', cmap=plt.cm.viridis, alpha=0.5)
+    sctr5 = ax5.scatter(px, py, sy[:,0], c=wp, marker='o', cmap=plt.cm.viridis, alpha=0.5)
+    sctr6 = ax6.scatter(px, py, sy[:,0], c=pp, marker='o', cmap=plt.cm.viridis, alpha=0.5)
 
+    scatters = [sctr4, sctr5, sctr6]
+    metrics = [r'$\epsilon_V$', r'$P_W$', r'$\epsilon_VP_W$']
+    axes = [ax4, ax5, ax6]
+    xmid_s = 60
+    xmid_lw = 2
+    
+    for i in range(len(axes)):
+        axes[i].scatter([xmid1p.norm_px], [xmid1p.norm_py], [xmid1p.norm_y], color='r', marker='x', s=xmid_s, lw=xmid_lw)
+        axes[i].scatter([xmid2p.norm_px], [xmid2p.norm_py], [xmid2p,norm_y], color='r', marker='^', s=xmid_s, lw=xmid_lw)
+        axes[i].set_xlabel(r'$p_x / s_x$', fontsize=14)
+        axes[i].set_ylabel(r'$p_y / s_y$', fontsize=14)
+        axes[i].set_zlabel(r'$s_y / s_x$', fontsize=14)
+        cbar = f.colorbar(scatters[i], ax=axes[i])
+        cbar.set_label(metrics[i], fontsize=14)
+    plt.tight_layout()
+    plt.show()
+'''
 
 
 # =====================================================================================
-    
-
-if __name__ == '__main__':
-    for i in range(10):
-        #s = sample_bilateral_footprint()
-        s = sample_biradial_footprint(8)
-        x,y = s.exterior.xy
-        plt.plot(x, y, '--ok')
-        plt.show()
-        #if(len(yy) != 9): pdb.set_trace()
+# =====================================================================================
