@@ -1,10 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import shelter
-import samplers
 import pdb
-from mpl_toolkits.mplot3d import Axes3D
+import lhsmdu
+import shelter
+import kernels
+import samplers
+import numpy as np
+import gaussianProcess as GP
+import matplotlib.pyplot as plt
 from shelter import xmid2p, xmid1p
+from mpl_toolkits.mplot3d import Axes3D
 
 import matplotlib
 matplotlib.rcParams['text.usetex'] = True
@@ -50,7 +53,9 @@ class shelterEmulator:
         # be sorted such that the normalized position sx' is removed after obtaining from 
         # shelter.get_free_params 
         self.x = None
-        self.q = None
+        self.quality = None
+        self.volumetric_efficiency = None
+        self.weather_performance = None
         
         # define GP grid, posterior, covariance
         self.prediction_grid = None
@@ -59,7 +64,7 @@ class shelterEmulator:
 
     # ----------------------------------------------------------------------------------------
 
-    def sample_space(self, N, method = 'random'):
+    def sample_space(self, N, method='random'):
         '''
         Samples parameter space; each sample is a shelter with a particular geometry, and each
         sample output is the shelter quality metric.
@@ -73,31 +78,32 @@ class shelterEmulator:
         '''
 
         if(method == 'random'):
-            all_x, self.q = samplers.random_sampling(self.nstakes, N, normed=True)
-            self.noise = np.zeros(len(self.q))
+            # randomly sample shelter
+            all_x, q = samplers.random_sampling(self.nstakes, N, normed=True)
+        elif(method == 'hypercube'):
+            # sample shelters on latin hypercube
+            all_x, q = samplers.random_sampling(self.nstakes, N, normed=True) 
+        self.noise = np.zeros(N)
+        self.volumetric_efficiency, self.weather_performance, self.quality = q[0], q[1], q[2]
+        
+        # transform into format described in constructor
+        self.x = np.zeros((N, self.M))
+        for i in range(N):
+            this_x = all_x[i]
             
-            # transform into format described in constructor
-            self.x = np.zeros((N, self.M))
-            for i in range(N):
-                this_x = all_x[i]
-                
-                # find the stake with largest x-value for each sample (this one is normalized,
-                # and thus needs to be removed from the free parameters)
-                norm_stake = np.argmax(all_x[i,:-1,0])
-                
-                # move stake with largest x-value to the front of the array
-                this_x[[0, norm_stake]] = this_x[[norm_stake, 0]]
-                
-                # clip normalized stake and add this point in parameter space to class attribute
-                self.x[i] = np.ravel(all_x[i])[1:]
-            pdb.set_trace() 
+            # find the stake with largest x-value for each sample (this one is normalized,
+            # and thus needs to be removed from the free parameters)
+            norm_stake = np.argmax(all_x[i,:-1,0])
             
-        else:
-            pass
+            # move stake with largest x-value to the front of the array
+            this_x[[0, norm_stake]] = this_x[[norm_stake, 0]]
+            
+            # clip normalized stake and add this point in parameter space to class attribute
+            self.x[i] = np.ravel(all_x[i])[1:]
             
     # ----------------------------------------------------------------------------------------
         
-    def build_gp_grid(self, n, dim_limits=None):
+    def build_gp_grid(self, n, dim_limits=None, normed=True):
         '''
         Builds the M-dimensional prediciton grid over which the emulator will return results
 
@@ -109,9 +115,11 @@ class shelterEmulator:
             grid limits on each dimension
         '''
         
-        
+        if(normed): scale = 1
+        else: scale = 50
+
         if(dim_limits is None and self.normalized == True):
-            dim_limits = np.vstack([np.zeros(self.M), np.ones(self.M)]).T * 50
+            dim_limits = np.vstack([np.zeros(self.M), np.ones(self.M)]).T * scale
 
         numpoints = int(n ** self.M)
         arrays = np.zeros((self.M, n))
@@ -122,13 +130,45 @@ class shelterEmulator:
        
         grid_dims = np.meshgrid(*arrays)
         self.prediction_grid = np.array([dim.flatten() for dim in grid_dims]).T
+    
+    # ----------------------------------------------------------------------------------------
 
+    def view_grid(self):
+        
+        f = plt.figure(figsize=(10,8))
+        ax4 = f.add_subplot(221, projection='3d')
+        ax5 = f.add_subplot(222, projection='3d')
+        ax6 = f.add_subplot(223, projection='3d')
+               
+        sctr4 = ax4.scatter(*self.x[:,::-1].T, c=self.volumetric_efficiency, 
+                                  marker='o', cmap=plt.cm.viridis, alpha=0.5)
+        sctr5 = ax5.scatter(*self.x[:,::-1].T, c=self.weather_performance, 
+                                  marker='o', cmap=plt.cm.viridis, alpha=0.5)
+        sctr6 = ax6.scatter(*self.x[:,::-1].T, c=self.quality, 
+                                  marker='o', cmap=plt.cm.viridis, alpha=0.5)
 
-    def view_grid():
-        return
+        scatters = [sctr4, sctr5, sctr6]
+        metrics = [r'$\epsilon_V$', r'$P_W$', r'$\epsilon_VP_W$']
+        axes = [ax4, ax5, ax6]
+        xmid_s = 60
+        xmid_lw = 2
+        
+        for i in range(len(axes)):
+            axes[i].scatter([xmid1p.norm_px], [xmid1p.norm_py], [xmid1p.norm_y], 
+                            color='r', marker='x', s=xmid_s, lw=xmid_lw)
+            axes[i].scatter([xmid2p.norm_px], [xmid2p.norm_py], [xmid2p.norm_y], 
+                            color='r', marker='^', s=xmid_s, lw=xmid_lw)
+            axes[i].set_xlabel(r'$p_x / s_x$', fontsize=14)
+            axes[i].set_ylabel(r'$p_y / s_y$', fontsize=14)
+            axes[i].set_zlabel(r'$s_y / s_x$', fontsize=14)
+            cbar = f.colorbar(scatters[i], ax=axes[i])
+            cbar.set_label(metrics[i], fontsize=14)
+        plt.tight_layout()
+        plt.show()
 
+    # ----------------------------------------------------------------------------------------
 
-    def run_gp_regression(tau=None, l=None):
+    def run_gp_regression(self, tau=None, l=None, vis_result=False, plot_sfx=''):
         '''
         Runs a Gaussian Process regression in the free parameter space with data sampled from 
         self.sample_space()
@@ -147,29 +187,38 @@ class shelterEmulator:
         # use these values for the kernal params if not passed; informed by runs with 
         # 4 stakes, biradial symmetry, and normalized parameters
         if(tau is None):
-            tau = np.ones(self.M) * 0.1
+            tau = np.ones(self.M) * 1
         if(l is None):
-            l = np.ones(self.M) * 0.01
+            l = np.ones(self.M) * .1
         self.kernel = lambda x,xp: kernels.sqExpNd(x, xp, tau=tau, l=l)
         self.flat_prior = lambda x: np.zeros((x.shape[0]))
-        
+       
         print('running GP regression with hyperparameters tau={}, l={}'.format(tau, l))
-        gp_result = GP.run_gp_regression(self.flat_prior, self.kernel, self.x, self.q,
+        gp_result = GP.run_gp_regression(self.flat_prior, self.kernel, self.x[:,::-1], self.quality,
                                          self.prediction_grid, self.noise, plot=vis_result, plot_sfx=plot_sfx)
         self.gp_posterior = gp_result[0]
         self.gp_cov = gp_result[1]
-
-        
-        
-
-
+        pdb.set_trace()
+    
+    # ----------------------------------------------------------------------------------------
+    
     def mc_confidence():
         return
+
+
+
+# ============================================================================================
+# ============================================================================================
+
+
 
 if __name__ == '__main__':
     ff = shelterEmulator(4)
     ff.build_gp_grid(10)
-    ff.sample_space(100)
+    ff.sample_space(1000, method='hypercube')
+    ff.view_grid()
+    ff.run_gp_regression()
+    pdb.set_trace()
       
 
 

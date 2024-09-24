@@ -236,7 +236,7 @@ def sample_asymmetric_footprint(nstakes):
 
 
 
-def random_sampling(nstakes, N, symmetry = 'biradial', normed = False):
+def random_sampling(nstakes, N, symmetry='biradial', normed=True):
     '''
     Randomly sample shelters in normalized parameter space
 
@@ -263,33 +263,77 @@ def random_sampling(nstakes, N, symmetry = 'biradial', normed = False):
     nparam = (free_stakes + free_poles) * 2  
     free_params = np.zeros((N, int(nparam/2), 2))
     
-    g = shelter.shelter(nstakes, symmetry=symmetry)
+    sampler = shelter.shelter(nstakes, symmetry=symmetry)
     ve = np.zeros(N)
     wp = np.zeros(N)
     
     # sample shelters, compute volumetric efficiency and weather performance
     for i in range(N):
-        if(i%100 == 0): print(i)
-        g.sample_footprint()
-        g.sample_poles()
-        g.pitch()
-        this_params = g.get_free_params(normed = normed)
+        if(i%100 == 0): print('drawing sample {}/{}'.format(i, N))
+        sampler.sample_footprint()
+        sampler.sample_poles()
+        sampler.pitch()
+        this_params = sampler.get_free_params(normed = normed)
         free_params[i] = np.vstack(this_params)
-        ve[i] = shelter.compute_volumetric_efficiency(g)
-        wp[i] = shelter.compute_weather_performance(g)
+        ve[i] = shelter.compute_volumetric_efficiency(sampler)
+        wp[i] = shelter.compute_weather_performance(sampler)
 
+    # compute quality metric
+    quality = (ve/np.max(ve)) * (wp/np.max(wp))
+    shelter_quality_metrics = np.array([ve, wp, quality])
+    
+    # return sample inputs, outputs
+    return free_params, shelter_quality_metrics
+
+# --------------------------------------------------------------------------------------
+
+def latin_hypercube_sampling(nstakes, N, symmetry='biradial', normed=True):
+    
+    # number of free parameters
+    if(symmetry == 'biradial'):
+        assert(nstakes % 4 == 0), 'nstakes must be divisible by 4'
+        free_stakes = int((nstakes/4))
+    if(symmetry == 'bilateral'): 
+        assert(nstakes % 2 == 0), 'nstakes must be divisible by 2'
+        free_stakes = int((nstakes/2))
+    free_poles = 1
+    
+    nparam = (free_stakes + free_poles) * 2  
+    free_params = np.zeros((N, int(nparam/2), 2))
+    
+    sampler = shelter.shelter(nstakes, symmetry=symmetry)
+    ve = np.zeros(N)
+    wp = np.zeros(N)
+    
+    # sample shelters, compute volumetric efficiency and weather performance
+    
+    # latin hypercube sampling
+    scaled_samples = np.array(lhsmdu.sample(free_params, N)).T
+    stakes = np.hstack([np.ones(N).reshape(N,1), scaled_samples[:, :-2]])
+    poles = scaled_samples[:, -2:]
+    
+    # get quality metrics per sample point
+    for i in range(N):
+        if(i%100 == 0): print('drawing sample {}/{}'.format(i, N))
+        
+        # extract stake, pole positions, add in constrained stake_x as 1 (will be normed)
+        stakes = stakes[i].reshape((nstakes/4, 2))
+        pole = poles[i]
+        
+        # get sample outputs
+        sampler.choose_footprint(stakes, normalize=True)
+        sampler.choose_stakes(pole)
+        sampler.pitch()
+        this_params = sampler.get_free_params(normed = normed)
+        free_params[i] = np.vstack(this_params)
+        ve[i] = shelter.compute_volumetric_efficiency(sampler)
+        wp[i] = shelter.compute_weather_performance(sampler)
+    
     # compute quality metric
     quality = (ve/np.max(ve)) * (wp/np.max(wp))
     
     # return sample inputs, outputs
     return free_params, quality
-
-# --------------------------------------------------------------------------------------
-
-def latin_hypercube_sampling():
-    pass
-
-
 
 
 

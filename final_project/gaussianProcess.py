@@ -140,30 +140,28 @@ def plot_function_gp_2d(axis, grid_var, xdata, zdata, xpred, title, label,
 
 def plot_function_gp_2Nd(grid_var, xdata, zdata, xpred, title, label, 
                          cm=plt.cm.viridis, colorbar=True, cbar_label='sensor'):
-    
+    '''
+    WIP
+    '''
     fig = plt.figure()
     M = len(xdata[0])
-    num_axes = comb(M, 2)
-    ax 
+    num_axes = comb(M, 2) 
+        
+    fig = plt.figure(figsize=(8, 8))
+    gs = gridspec.GridSpec(2, 4)
+    gs.update(wspace=1.5)
+    ax1 = fig.add_subplot(gs[0, :2], )
+    ax2 = fig.add_subplot(gs[0, 2:])
+    ax3 = fig.add_subplot(gs[1, 1:3])
     
-    pixels = int(np.sqrt(len(xpred.T[0])))
-    grid_var = grid_var.reshape(pixels, pixels)
+    plot_function_gp(ax1, prior_mean, xdata, ydata, xspace, 'Prior', 'Prior mean', colorbar=False)
+    plot_function_gp(ax2, mean_predict, xdata, ydata, xspace, 'Posterior', 'Posterior mean')
     
-    im = axis.imshow(grid_var[::-1], cmap=cm, aspect='equal', interpolation='nearest', 
-                extent=[-1, 1, -1, 1], label=label, vmin=0)
+    pred_2sig = 2 * np.sqrt(np.diag(cov_predict))
+    plot_function_gp(ax3, pred_2sig, xdata, ydata, xspace, 'Covaraince', 'Posterior Covariance', 
+                     cm = plt.cm.plasma, cbar_label=r'$2\sigma$') 
+    plt.savefig('gp_regression_p{}{}_{}.png'.format(plot_sfx), dpi=300)
     
-    norm_marker_area = (zdata/min(zdata))**10 * 10
-    axis.scatter(xdata.T[0], xdata.T[1], c='k', marker='o', s=norm_marker_area, linewidths=1, edgecolors='w', 
-                 label='data', cmap=plt.cm.viridis, alpha=0.75)
-    axis.set_xlabel('x', fontsize=14)
-    axis.set_ylabel('y', fontsize=14)
-    
-    if(colorbar):
-        cbar = plt.gcf().colorbar(im, ax=axis, fraction=0.046, pad=0.04)
-        cbar.set_label(cbar_label, fontsize=14)
-    
-    axis.legend()
-    axis.set_title(title, fontsize=14)
     
 
 # -----------------------------------------------------------
@@ -209,20 +207,6 @@ def run_gp_regression(mean_func, kernel, xdata, ydata, xspace, noise_cov=1e-1,
     mean_predict, cov_predict = gpr_Md(xdata, ydata, xspace, noise_cov * np.ones((xdata.shape[0])), 
                                        mean_func, kernel)
     if(plot):
-        fig = plt.figure(figsize=(8, 8))
-        gs = gridspec.GridSpec(2, 4)
-        gs.update(wspace=1.5)
-        ax1 = fig.add_subplot(gs[0, :2], )
-        ax2 = fig.add_subplot(gs[0, 2:])
-        ax3 = fig.add_subplot(gs[1, 1:3])
-        
-        plot_function_gp(ax1, prior_mean, xdata, ydata, xspace, 'Prior', 'Prior mean', colorbar=False)
-        plot_function_gp(ax2, mean_predict, xdata, ydata, xspace, 'Posterior', 'Posterior mean')
-        
-        pred_2sig = 2 * np.sqrt(np.diag(cov_predict))
-        plot_function_gp(ax3, pred_2sig, xdata, ydata, xspace, 'Covaraince', 'Posterior Covariance', 
-                         cm = plt.cm.plasma, cbar_label=r'$2\sigma$') 
-        plt.savefig('gp_regression_p{}{}_{}.png'.format(plot_sfx), dpi=300)
+        plot_funciton_gp_Nd(mean_predict, xdata, ydata, xspace, 'Posterior', 'Posterior mean')
     
     return mean_predict, cov_predict
-

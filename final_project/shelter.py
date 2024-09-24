@@ -105,8 +105,8 @@ class shelter:
         
         elif(self.symmetry == 'biradial'):
             # reflect about x=0 and y=0
-            stakes_x = np.hstack(np.array([1, 1, -1, -1]) * stakes_x) 
-            stakes_y = np.hstack(np.array([1, -1, 1, -1]) * stakes_y)
+            stakes_x = np.hstack(np.array([[1, 1, -1, -1]]) * np.atleast_2d(stakes_x).T) 
+            stakes_y = np.hstack(np.array([[1, -1, 1, -1]]) * np.atleast_2d(stakes_y).T)
             stakes = np.vstack([stakes_x, stakes_y]).T
            
         # sort by angular position
@@ -358,6 +358,7 @@ class defined_model:
 
 xmid2p = defined_model(np.array([[100/2, (100/103 * 88)/2]]), [25, 18])
 xmid1p = defined_model(np.array([[100/2, 67/2]]), [25, 8.5])
+zpacks_duplex = defined_model(np.array([[50, 22.5], [0, 22.5+24]]), [0, 22.5])
 
         
 # ============================================================================

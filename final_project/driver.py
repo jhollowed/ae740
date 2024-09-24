@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import pathlib
 import matplotlib.pyplot as plt
-from shelter import xmid2p, xmid1p
+from shelter import xmid2p, xmid1p, zpacks_duplex
 
 sys.path.append('{}/../project1'.format(pathlib.Path(__file__).parent.absolute()))
 sys.path.append('{}/../project2'.format(pathlib.Path(__file__).parent.absolute()))
@@ -42,12 +42,13 @@ def random_sampling(nstakes, N, symmetry = 'biradial'):
         ve[i] = shelter.compute_volumetric_efficiency(g)
         wp[i] = shelter.compute_weather_performance(g)
     pp = (ve/np.max(ve)) * (wp/np.max(wp))
-    
+
+    # plot in 3D
     f = plt.figure(figsize=(10,8))
     ax4 = f.add_subplot(221, projection='3d')
     ax5 = f.add_subplot(222, projection='3d')
     ax6 = f.add_subplot(223, projection='3d')
-    
+   
     sctr4 = ax4.scatter(px, py, sy[:,0], c=ve, marker='o', cmap=plt.cm.viridis, alpha=0.5)
     sctr5 = ax5.scatter(px, py, sy[:,0], c=wp, marker='o', cmap=plt.cm.viridis, alpha=0.5)
     sctr6 = ax6.scatter(px, py, sy[:,0], c=pp, marker='o', cmap=plt.cm.viridis, alpha=0.5)
@@ -61,6 +62,7 @@ def random_sampling(nstakes, N, symmetry = 'biradial'):
     for i in range(len(axes)):
         axes[i].scatter([xmid1p.norm_px], [xmid1p.norm_py], [xmid1p.norm_y], color='r', marker='x', s=xmid_s, lw=xmid_lw)
         axes[i].scatter([xmid2p.norm_px], [xmid2p.norm_py], [xmid2p.norm_y], color='r', marker='^', s=xmid_s, lw=xmid_lw)
+        axes[i].scatter([zpacks_duplex.norm_px], [zpacks_duplex.norm_py], [np.max(zpacks_duplex.norm_y)], color='m', marker='^', s=xmid_s, lw=xmid_lw)
         axes[i].set_xlabel(r'$p_x / s_x$', fontsize=14)
         axes[i].set_ylabel(r'$p_y / s_y$', fontsize=14)
         axes[i].set_zlabel(r'$s_y / s_x$', fontsize=14)
